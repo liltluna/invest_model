@@ -92,16 +92,6 @@ train_df = pd.read_csv(train_path, header=None, index_col=None, delimiter=',')
 test_df = pd.read_csv(test_path, header=None, index_col=None, delimiter=',')
 
 
-# train_df = train_df.iloc[:,:-1]
-# test_df = test_df.iloc[:,:-1]
-
-# # drop nan values
-# train_df = train_df.dropna(axis=0)
-# test_df = test_df.dropna(axis=0)
-
-# # drop first 15 row
-# train_df = train_df.iloc[15:, :]
-# test_df = test_df.iloc[15:, :]
 
 l0_train = train_df.loc[train_df[0] == 0]
 l1_train = train_df.loc[train_df[0] == 1]
@@ -152,6 +142,7 @@ test_df.reset_index(drop=True, inplace=True)
 print("train_df size: ", train_df.shape)
 
 # fill params dict before call train_cnn
+
 params = {"input_w": 15, "input_h": 15,
           "num_classes": 3, "batch_size": 512, "epochs": 200}
 # params = {"input_w": 15, "input_h": 15, "num_classes": 3, "batch_size": 1024, "epochs": 100}
