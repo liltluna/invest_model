@@ -1,6 +1,6 @@
 import os
 import pandas as pd
-from feature.formula import *
+from utils.formula import *
 from sklearn.preprocessing import MinMaxScaler
 from warnings import simplefilter
 simplefilter(action="ignore", category=pd.errors.PerformanceWarning)

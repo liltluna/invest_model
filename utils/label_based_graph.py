@@ -3,7 +3,7 @@ import os
 import pathlib
 import pandas as pd
 import pandas_ta as ta
-from utils.formula import *
+from formula import *
 from sklearn.preprocessing import MinMaxScaler
 from warnings import simplefilter
 simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
@@ -15,9 +15,7 @@ data_name_list = ['rsi', 'willr', 'sma', 'ema', 'wma', 'hma',
 column_names = ["date", "open", "high", "low",
                 "close", "preClose", "vol"]  # Define column names
 
-# Read CSV file into a DataFrame
-
-file_path = pathlib.Path('./dataset/graph_label/reversed_all_data.csv')
+file_path = pathlib.Path('./dataset/reversed_all_data.csv')
 dir_path = file_path.parent
 temp_data = pd.DataFrame()
 temp_frames = []
@@ -45,17 +43,17 @@ for length in range(start, end):
     hma = ta.hma(source_data['close'], length)
     tema = ta.tema(source_data['close'], length)
     cci = ta.cci(source_data['high'], source_data['low'],
-                source_data['close'], length)
+                    source_data['close'], length)
     cmo = ta.cmo(source_data['close'], length)
     macd_h = ta.macd(source_data['close'], offset=length).iloc[:, 1]
     ppo_h = ta.ppo(source_data['close'], offset=length).iloc[:, 1]
     roc = ta.roc(source_data['close'], length)
     cmf = ta.cmf(open_=source_data['open'], high=source_data['high'], low=source_data['low'],
-                close=source_data['close'], volume=source_data['vol'], length=6)
+                    close=source_data['close'], volume=source_data['vol'], length=6)
     adx = ta.adx(source_data['high'], source_data['low'],
-                source_data['close'], length).iloc[:, 0]
+                    source_data['close'], length).iloc[:, 0]
     psar = ta.psar(high=source_data['high'], low=source_data['low'],
-                close=source_data['close'], offset=length).iloc[:, 2]
+                    close=source_data['close'], offset=length).iloc[:, 2]
 
     temp_frame = pd.DataFrame({
         'rsi_{}'.format(length): rsi,
@@ -98,10 +96,8 @@ scaled_data_df['LABELS'] = verbose_info['LABELS']
 scaled_data_df['PRICE'] = verbose_info['PRICE']
 scaled_data_df = scaled_data_df[order]
 
-new_file_path = dir + \
-    'output_phase2_{}.csv'.format(
-        file_path.split('/')[-1].split('_')[-2])
-print('{}-saved...'.format(new_file_path))
+new_file_path = dir_path / 'output_phase2_all_data.csv'
 if os.path.exists(new_file_path):
     os.remove(new_file_path)
 scaled_data_df.round(2).to_csv(new_file_path, index=False, header=None)
+print('{}-saved...'.format(new_file_path))
