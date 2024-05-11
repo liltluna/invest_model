@@ -8,16 +8,23 @@ from sklearn.preprocessing import MinMaxScaler
 from warnings import simplefilter
 simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 
+# config 
 start = 6
 end = 21
+
+
+
 data_name_list = ['rsi', 'willr', 'sma', 'ema', 'wma', 'hma',
                   'tema', 'cci', 'cmo', 'macd_h', 'ppo_h', 'roc', 'cmf', 'adx', 'psar']
 column_names = ["date", "open", "high", "low",
                 "close", "preClose", "vol"]  # Define column names
 
+
+
+
 # Read CSV file into a DataFrame
 
-file_path = pathlib.Path('./dataset/graph_label/reversed_all_data.csv')
+file_path = pathlib.Path('./dataset/graph_label/reversed_all_data_000700.SZ.csv')
 dir_path = file_path.parent
 temp_data = pd.DataFrame()
 temp_frames = []

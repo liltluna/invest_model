@@ -1,155 +1,107 @@
-import numpy as np
-import pandas as pd
-import csv
-from sklearn.model_selection import StratifiedKFold
-from sklearn import metrics
-import matplotlib.pyplot as plt
-import keras
-from keras.models import Sequential
-from keras.layers import Dense, Dropout, Activation, Flatten
-from keras.layers import Conv2D, MaxPooling2D
-from tensorflow.keras.optimizers import Adadelta
-from sklearn.metrics import classification_report, confusion_matrix
-from sklearn.utils import shuffle
-import math
+
+from models.dataset import *
+from models.models import *
+from models.process import *
+from pathlib import Path
+from tqdm import tqdm
 
 
-def train_cnn(training_df, test_df, params):
-    """Trains and evaluates CNN on the given train and test data, respectively."""
-
-    print("Training is starting ...")
-    train_images = training_df.iloc[:, 2:].to_numpy()
-    train_labels = training_df.iloc[:, 0]
-    train_prices = training_df.iloc[:, 1]
-
-    test_images = test_df.iloc[:, 2:].to_numpy()
-    test_labels = test_df.iloc[:, 0]
-    test_prices = test_df.iloc[:, 1]
-
-    test_labels = keras.utils.np_utils.to_categorical(
-        test_labels, params["num_classes"])
-    train_labels = keras.utils.np_utils.to_categorical(
-        train_labels, params["num_classes"])
-
-    train_images = train_images.reshape(
-        train_images.shape[0], params["input_w"], params["input_h"], 1)
-    test_images = test_images.reshape(
-        test_images.shape[0], params["input_w"], params["input_h"], 1)
-
-    # CNN model
-    model = Sequential()
-    model.add(Conv2D(32, (3, 3), activation='relu', input_shape=(
-        params["input_w"], params["input_h"], 1)))
-    model.add(Conv2D(64, (3, 3), activation='relu'))
-    model.add(MaxPooling2D(pool_size=(2, 2)))
-    model.add(Dropout(0.25))
-    model.add(Flatten())
-    model.add(Dense(128, activation='relu'))
-    model.add(Dropout(0.5))
-    model.add(Dense(params["num_classes"], activation='softmax'))
-    model.compile(loss=keras.losses.categorical_crossentropy,
-                  optimizer=Adadelta(),
-                  metrics=['accuracy', 'mae', 'mse'])
-
-    # metrics.accuracy_score, metrics.recall_score, metrics.average_precision_score, metrics.confusion_matrix
-    train_data_size = train_images.shape[0]
-    test_data_size = test_images.shape[0]
-
-    print("model will be trained with {} and be tested with {} sample".format(
-        train_data_size, test_data_size))
-    # fit the model to the training data
-    print("Fitting model to the training data...")
-    print("")
-    model.fit(train_images, train_labels,
-              batch_size=params["batch_size"], epochs=params["epochs"], verbose=1, validation_data=None)
-
-    predictions = model.predict(
-        test_images, batch_size=params["batch_size"], verbose=1)
-    print(model.evaluate(test_images, test_labels,
-          batch_size=params["batch_size"], verbose=1))
-
-    print("Train conf matrix: \n", confusion_matrix(np.array(reverse_one_hot(train_labels)),
-                                                  np.array(reverse_one_hot(model.predict(train_images, batch_size=params["batch_size"], verbose=1)))))
-
-    print("Test conf matrix: \n",  confusion_matrix(np.array(reverse_one_hot(test_labels)),
-                                                  np.array(reverse_one_hot(predictions))))
-
-    return predictions, test_labels, test_prices
+def get_model(config):
+    model = GraphCNN(input_h=config['input_h'], input_w=config['input_w'], num_classes=config['num_classes'])
+    return model
 
 
-def reverse_one_hot(predictions):
-    reversed_x = []
-    for x in predictions:
-        reversed_x.append(np.argmax(np.array(x)))
-    return reversed_x
+config = get_universial_config()
 
+# Define the device
+device = "cuda:0" if torch.cuda.is_available(
+) else "mps" if torch.has_mps or torch.backends.mps.is_available() else "cpu"
+# device = "cpu"
+print("Using device:", device)
+if (device == 'cuda:0'):
+    print(f"Device name: {torch.cuda.get_device_name(device.index)}")
+    print(
+        f"Device memory: {torch.cuda.get_device_properties(device.index).total_memory / 1024 ** 3} GB")
+elif (device == 'mps'):
+    print(f"Device name: <mps>")
+else:
+    print("NOTE: If you have a GPU, consider using it for training.")
+device = torch.device(device)
 
-train_path = './dataset/set-0/output_phase2_train.csv'
-test_path = './dataset/set-0/output_phase2_test.csv'
+# Make sure the weights folder exists
+Path(f"./{config['model_folder']}").mkdir(parents=True, exist_ok=True)
 
+train_dataloader, val_dataloader = get_ds(config)
+model = get_model(config).to(device)
+# Tensorboard
+# writer = SummaryWriter(config['experiment_name'])
+# writer = None
+optimizer = torch.optim.Adam(model.parameters(), lr=config['lr'], eps=1e-9)
 
-train_df = pd.read_csv(train_path, header=None, index_col=None, delimiter=',')
-test_df = pd.read_csv(test_path, header=None, index_col=None, delimiter=',')
+# If the user specified a model to preload before training, load it
+initial_epoch = 0
+global_step = 0
+preload = config['preload']
+model_filename = None
+if model_filename:
+    print(f'Preloading model {model_filename}')
+    state = torch.load(model_filename)
+    model.load_state_dict(state['model_state_dict'])
+    initial_epoch = state['epoch'] + 1
+    optimizer.load_state_dict(state['optimizer_state_dict'])
+    global_step = state['global_step']
+else:
+    print('No model to preload, starting from scratch')
 
+loss_fn = nn.CrossEntropyLoss().to(device)
 
+if not os.path.exists('./result'):
+    os.mkdir('./result')
 
-l0_train = train_df.loc[train_df[0] == 0]
-l1_train = train_df.loc[train_df[0] == 1]
-l2_train = train_df.loc[train_df[0] == 2]
-l0_size = l0_train.shape[0]
-l1_size = l1_train.shape[0]
-l2_size = l2_train.shape[0]
+fieldnames = ['epoch', 'loss', 'acc']
+with open(f'./result/statistic.csv', 'w', newline='', encoding='utf-8') as csvfile:
+    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+    writer.writeheader()
 
-l0_l1_ratio = (l0_size//l1_size)
-l0_l2_ratio = (l0_size//l2_size)
-print("Before")
-print("l0_size:", l0_size, "l1_size:", l1_size, "l2_size:", l2_size)
-print("l0_l1_ratio:", l0_l1_ratio, "l0_l2_ratio:", l0_l2_ratio)
+for epoch in range(initial_epoch, config['num_epochs']):
+    torch.cuda.empty_cache()
+    model.train()
+    batch_iterator = tqdm(
+        train_dataloader, desc=f"Processing Epoch {epoch:02d}")
+    for batch in batch_iterator:
 
-l1_new = pd.DataFrame()
-l2_new = pd.DataFrame()
-for idx, row in train_df.iterrows():
-    if row[0] == 1:
-        for i in range(l0_l1_ratio):
-            l1_new = l1_new._append(row)
-    if row[0] == 2:
-        for i in range(l0_l2_ratio):
-            l2_new = l2_new._append(row)
+        nn_input = batch['nn_input'].to(device)  # (b, seq_len)
+        encoder_mask = None
+        # Run the tensors through the encoder, decoder and the projection layer
+        nn_output = model.forward(nn_input) 
 
-train_df = train_df._append(l1_new)
-train_df = train_df._append(l2_new)
+        # Compare the output with the label
+        # label = batch['label'].to(device)  
+        # 调整标签
+        label = batch['label'].long().to(device)  
 
-# shuffle
-train_df = shuffle(train_df)
+        # 使用NLLLoss
+        # Compute the loss using a simple cross entropy
+        loss = loss_fn(nn_output, label)
+        batch_iterator.set_postfix({"loss": f"{loss.item():6.3f}"})
 
-l0_train = train_df.loc[train_df[0] == 0]
-l1_train = train_df.loc[train_df[0] == 1]
-l2_train = train_df.loc[train_df[0] == 2]
-l0_size = l0_train.shape[0]
-l1_size = l1_train.shape[0]
-l2_size = l2_train.shape[0]
+        # Log the loss
+        # writer.add_scalar('train loss', loss.item(), global_step)
+        # writer.flush()
 
-l0_l1_ratio = (l0_size//l1_size)
-l0_l2_ratio = (l0_size//l2_size)
-print("After")
-print("l0_size:", l0_size, "l1_size:", l1_size, "l2_size:", l2_size)
-print("l0_l1_ratio:", l0_l1_ratio, "l0_l2_ratio:", l0_l2_ratio)
+        # Backpropagate the loss
+        loss.backward()
 
+        # Update the weights
+        optimizer.step()
+        optimizer.zero_grad(set_to_none=True)
 
-train_df.reset_index(drop=True, inplace=True)
-test_df.reset_index(drop=True, inplace=True)
+        global_step += 1
 
-print("train_df size: ", train_df.shape)
-
-# fill params dict before call train_cnn
-
-params = {"input_w": 15, "input_h": 15,
-          "num_classes": 3, "batch_size": 512, "epochs": 200}
-# params = {"input_w": 15, "input_h": 15, "num_classes": 3, "batch_size": 1024, "epochs": 100}
-
-predictions, test_labels, test_prices = train_cnn(train_df, test_df, params)
-
-result_df = pd.DataFrame({"prediction": np.argmax(predictions, axis=1),
-                          "test_label": np.argmax(test_labels, axis=1),
-                         "test_price": test_prices})
-result_df.to_csv("cnn_result.csv", sep=',', index=None)
+    # Run validation at the end of every epoch
+    accuracy = run_validation(model, val_dataloader, config['step_len'], device, lambda msg: batch_iterator.write(
+        msg), global_step, writer=None, epoch=epoch)
+    with open(f'./result/statistic.csv', 'a', newline='', encoding='utf-8') as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        # 将数据写入
+        writer.writerow({'epoch': epoch, 'loss': loss.item(), 'acc': accuracy})

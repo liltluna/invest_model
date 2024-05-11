@@ -6,25 +6,27 @@ import os
 
 start_year = 2009
 gap_year = 9  # 9年作为训练，之后一年用来测试， 2009-2018 2019
+
+ts_code = '000700.SZ'
+
 pro = pro = ts.pro_api(
     '19c1ab37c30ca784d8658cf1050c0aba8eef6cb8d7cda5d0744d6bfb')
 
 if not os.path.exists('dataset'):
     os.mkdir('dataset')
 else:
-    shutil.rmtree('dataset')
-    os.mkdir('dataset')
+    pass
 
 # keep all the data in a file
 columns_to_drop = ['ts_code', 'change', 'pct_chg', 'amount']  # 删除指定的列
-df = pro.daily(ts_code='000700.SZ', start_date='20120401', end_date='20240401')
+df = pro.daily(ts_code=ts_code, start_date='20120401', end_date='20240401')
 
 print(f'GET: Length of dataset: {len(df)}')
 
 df.drop(columns=columns_to_drop, inplace=True)
 df['trade_date'] = pd.to_datetime(df["trade_date"], format="%Y%m%d")
 df_reversed = df[::-1]
-df_reversed.to_csv('./dataset/reversed_all_data.csv',
+df_reversed.to_csv(f'./dataset/reversed_all_data_{ts_code}.csv',
                    index=False, header=False)  # index=False 防止保存索引列
 
 
