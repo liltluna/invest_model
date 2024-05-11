@@ -6,30 +6,35 @@ import pandas_ta as ta
 from utils.formula import *
 from sklearn.preprocessing import MinMaxScaler
 from warnings import simplefilter
+from pathlib import Path
+
 simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 
 # config 
 start = 6
 end = 21
-
-
+ts_code = '000700.SZ'
+# label methods: graph_label or ...
+label_method = 'graph_label'
+precision = 6
+# train and test split
+split_date = pd.Timestamp('2023-01-01')
 
 data_name_list = ['rsi', 'willr', 'sma', 'ema', 'wma', 'hma',
                   'tema', 'cci', 'cmo', 'macd_h', 'ppo_h', 'roc', 'cmf', 'adx', 'psar']
+# Define column names
 column_names = ["date", "open", "high", "low",
-                "close", "preClose", "vol"]  # Define column names
-
-
-
-
+                "close", "preClose", "vol"]  
 # Read CSV file into a DataFrame
-
-file_path = pathlib.Path('./dataset/graph_label/reversed_all_data_000700.SZ.csv')
+file_path = pathlib.Path(f'./dataset/reversed_all_data_{ts_code}.csv')
 dir_path = file_path.parent
+Path(dir_path/label_method).mkdir(parents=True, exist_ok=True)
+
 temp_data = pd.DataFrame()
 temp_frames = []
 
 source_data = pd.read_csv(file_path, header=None, names=column_names)
+# source_data = source_data.drop(index=0)
 source_data['date'] = pd.to_datetime(
     source_data["date"], format="%Y-%m-%d")
 source_data.set_index('date', inplace=True)
@@ -41,6 +46,7 @@ temp_data.replace({
     float('nan'): np.nan}, inplace=True)
 temp_data['PRICE'] = source_data['close']
 temp_data.replace({float('nan'): np.nan}, inplace=True)
+source_data = source_data.dropna()
 
 for length in range(start, end):
     rsi = ta.rsi(source_data['close'], length)
@@ -97,6 +103,8 @@ for index in data_name_list:
 verbose_info = pd.DataFrame(data, columns=['LABELS', 'PRICE'])
 verbose_info = verbose_info.reset_index(drop=True)
 
+data = data[~np.isinf(data).any(axis=1)]  # 删除含有无穷大的行
+
 scaler = MinMaxScaler(feature_range=(-1, 1))
 scaled_data = scaler.fit_transform(data)
 
@@ -104,11 +112,16 @@ scaled_data_df = pd.DataFrame(scaled_data, columns=data.columns)
 scaled_data_df['LABELS'] = verbose_info['LABELS']
 scaled_data_df['PRICE'] = verbose_info['PRICE']
 scaled_data_df = scaled_data_df[order]
+scaled_data_df.index = data.index
 
-new_file_path = dir + \
-    'output_phase2_{}.csv'.format(
-        file_path.split('/')[-1].split('_')[-2])
-print('{}-saved...'.format(new_file_path))
-if os.path.exists(new_file_path):
-    os.remove(new_file_path)
-scaled_data_df.round(2).to_csv(new_file_path, index=False, header=None)
+result_train_file_path = dir_path/f'{label_method}/{ts_code}-train.csv'
+result_test_file_path = dir_path/f'{label_method}/{ts_code}-test.csv'
+
+train_df = scaled_data_df[scaled_data_df.index < split_date]
+test_df = scaled_data_df[scaled_data_df.index >= split_date]
+
+train_df.round(precision).to_csv(result_train_file_path, index=True, header=None)
+print('{}-saved...'.format(result_train_file_path))
+
+test_df.round(precision).to_csv(result_test_file_path, index=True, header=None)
+print('{}-saved...'.format(result_test_file_path))

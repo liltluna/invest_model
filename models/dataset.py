@@ -222,12 +222,12 @@ class GraphDataset(Dataset):
 
         nn_input = torch.cat(
             [
-                torch.tensor(graph, dtype=torch.float),
+                graph,
             ],
             dim=0,
         )
 
-        label = torch.tensor(label, dtype=torch.int)
+        label = label
 
         return {
             "date": date, 

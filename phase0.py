@@ -5,7 +5,7 @@ import os
 
 
 start_year = 2009
-gap_year = 9  # 9年作为训练，之后一年用来测试， 2009-2018 2019
+gap_year = 9  
 
 ts_code = '000700.SZ'
 
