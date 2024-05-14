@@ -7,13 +7,14 @@ from utils.formula import *
 from sklearn.preprocessing import MinMaxScaler
 from warnings import simplefilter
 from pathlib import Path
+from models.config import CONFIG
 
 simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 
 # config 
 start = 6
 end = 21
-ts_code = '000700.SZ'
+ts_code = CONFIG['ts_code']
 # label methods: graph_label or ...
 label_method = 'graph_label'
 precision = 6

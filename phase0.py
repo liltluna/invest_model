@@ -1,13 +1,13 @@
 import tushare as ts
 import pandas as pd
-import shutil
 import os
+from models.config import CONFIG
 
 
 start_year = 2009
 gap_year = 9  
 
-ts_code = '000700.SZ'
+ts_code = CONFIG['ts_code']
 
 pro = pro = ts.pro_api(
     '19c1ab37c30ca784d8658cf1050c0aba8eef6cb8d7cda5d0744d6bfb')
@@ -19,7 +19,7 @@ else:
 
 # keep all the data in a file
 columns_to_drop = ['ts_code', 'change', 'pct_chg', 'amount']  # 删除指定的列
-df = pro.daily(ts_code=ts_code, start_date='20120401', end_date='20240401')
+df = pro.index_daily(ts_code=ts_code, start_date='20120401', end_date='20240401')
 
 print(f'GET: Length of dataset: {len(df)}')
 
