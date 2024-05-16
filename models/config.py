@@ -14,6 +14,6 @@ CONFIG = {
     "input_w": 15,
     "input_h": 15,
     "label_method": "graph_label",
-    "ts_code": "000016.SH",
+    "ts_code": "000852.SH",
     "model_name": "CNN",
 }
